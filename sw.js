@@ -1,4 +1,4 @@
-const CACHE = 'codenest-v1';
+const CACHE = 'codenest-v2';
 const ASSETS = [
   './index.html',
   './manifest.json',
@@ -23,6 +23,17 @@ self.addEventListener('activate', function(e){
 
 self.addEventListener('fetch', function(e){
   if (e.request.method !== 'GET') return;
+  // index.html は常に最新を取りに行く（取れなければキャッシュ）＝更新が反映されやすい
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then(function(resp){
+        var copy = resp.clone();
+        caches.open(CACHE).then(function(c){ c.put('./index.html', copy); }).catch(function(){});
+        return resp;
+      }).catch(function(){ return caches.match('./index.html'); })
+    );
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(function(r){
       return r || fetch(e.request).then(function(resp){
