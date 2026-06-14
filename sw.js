@@ -1,4 +1,4 @@
-const CACHE = 'codenest-v2';
+const CACHE = 'codenest-v6';
 const ASSETS = [
   './index.html',
   './manifest.json',

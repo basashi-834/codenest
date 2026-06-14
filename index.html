@@ -66,14 +66,31 @@
     flex:none; padding:7px 10px; border-radius:9px; font-size:12px; font-weight:600;
     border:1.5px solid var(--line); background:#fff; color:var(--ink);
   }
-  #codeIn{
-    flex:1; width:100%; border:1.5px solid var(--line); border-radius:12px;
-    padding:12px; background:#fff; color:#2a271f;
+  #editorWrap{
+    flex:1; position:relative; min-height:0;
+    border:1.5px solid var(--line); border-radius:12px; background:#fff; overflow:hidden;
+  }
+  #codeHL, #codeIn{
+    position:absolute; inset:0; margin:0; box-sizing:border-box;
+    padding:12px; border:0; border-radius:12px;
     font-family:"Courier New", Courier, monospace; font-size:13px;
-    line-height:1.6; letter-spacing:0;
-    -webkit-user-select:text; user-select:text; resize:none;
+    line-height:1.6; letter-spacing:0; tab-size:2; -moz-tab-size:2;
     white-space:pre; overflow:auto;
   }
+  #codeHL{ pointer-events:none; z-index:1; color:#2a271f; background:transparent; }
+  #codeIn{
+    z-index:2; background:transparent; color:transparent; caret-color:#2a271f;
+    -webkit-user-select:text; user-select:text; resize:none; outline:none;
+  }
+  #codeIn::selection{ background:rgba(47,111,237,.22); }
+  #codeIn::-moz-selection{ background:rgba(47,111,237,.22); }
+  /* 括弧 { } の対応を色で表示（同じ色＝対応するペア） */
+  .bd0{color:#2f6fed; font-weight:800;}
+  .bd1{color:#2e9e5b; font-weight:800;}
+  .bd2{color:#e6862e; font-weight:800;}
+  .bd3{color:#9b59d0; font-weight:800;}
+  .bd4{color:#d6406a; font-weight:800;}
+  .bd5{color:#13a3b3; font-weight:800;}
   #pmsg{font-size:11px; color:#c0392b; min-height:14px;}
 
   /* ---- 図ペイン ---- */
@@ -117,12 +134,36 @@
     margin-right:5px; vertical-align:-6px; box-shadow:0 0 0 2px #fff, 0 1px 2px rgba(0,0,0,.25);
   }
   .stnote{font-size:11px; color:#5a4cc4; font-weight:700; margin-left:6px;}
-  #zempty{text-align:center; color:var(--ink-soft); font-size:13px; line-height:1.8; padding:48px 12px;}
+  #zempty, .uml-empty{text-align:center; color:var(--ink-soft); font-size:13px; line-height:1.8; padding:48px 12px;}
   #umlWrap{
-    max-width:100%; margin:0 auto; background:#fff; border:1.5px solid var(--line);
-    border-radius:12px; padding:8px; overflow:auto; display:none;
+    max-width:100%; margin:0 auto; background:transparent;
+    border-radius:12px; padding:0; overflow:auto; display:none;
   }
-  #umlWrap svg{display:block; max-width:none; height:auto;}
+  #umlSeg{
+    display:flex; width:max-content; margin:0 auto 12px;
+    border:1.5px solid var(--line); border-radius:10px; overflow:hidden; background:#fff;
+  }
+  #umlSeg button{
+    padding:6px 14px; font-size:12px; font-weight:600; color:var(--ink-soft);
+    background:transparent; border:none; cursor:pointer;
+  }
+  #umlSeg button.on{ background:var(--accent); color:#fff; }
+  #umlClass, #umlObj, #umlSeq{
+    background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:8px;
+    overflow:auto; display:none;
+  }
+  #umlClass svg, #umlObj svg, #umlSeq svg{ display:block; max-width:none; height:auto; }
+  #outWrap{max-width:560px; margin:0 auto; display:none;}
+  .console{
+    background:#1e1e1e; color:#e8e8e8; border-radius:12px; padding:14px 16px;
+    font-family:"Courier New", Courier, monospace; font-size:13.5px; line-height:1.7; letter-spacing:0;
+    white-space:pre-wrap; word-break:break-word; -webkit-user-select:text; user-select:text;
+    min-height:60px;
+  }
+  .console .cprompt{color:#7fd17f; font-weight:700;}
+  .console .cempty{color:#888;}
+  .outnote{font-size:11.5px; color:var(--ink-soft); line-height:1.6; margin:10px 2px 0;}
+  .outnote.warn{color:#c0392b;}
 
   /* ---- フッター ---- */
   footer{
@@ -170,7 +211,11 @@
   #closeOv{background:#fffdf9; color:var(--ink);}
 
   /* === レスポンシブ === */
-  /* 既定はスマホ/タブレット縦向け：等倍・分割は上下。広い画面（PC等）だけ拡大して左右分割にする */
+  /* 既定（スマホ）：等倍・分割は上下。画面が広いほど拡大し、PCサイズで左右分割に */
+  @media (min-width: 740px){
+    #imap, #ztree{ zoom: 1.25; }
+    body[data-flow="1"] #ztree{ padding-left: 72px; }
+  }
   @media (min-width: 1000px){
     #main{ flex-direction: row; }
     body[data-mode="split"] #codePane{
@@ -193,6 +238,7 @@
   <span id="saveState">保存✓</span>
   <div class="grow"></div>
   <button class="hbtn" id="undoBtn">↩</button>
+  <button class="hbtn" id="redoBtn">↪</button>
   <button class="hbtn primary" id="exportBtn">画像</button>
 </header>
 
@@ -203,7 +249,10 @@
       <span class="note">コードを書くと図・継承マップ・実行順・UMLが自動生成されます</span>
       <button id="sampleBtn">サンプル</button>
     </div>
-    <textarea id="codeIn" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+    <div id="editorWrap">
+      <pre id="codeHL" aria-hidden="true"></pre>
+      <textarea id="codeIn" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+    </div>
     <div id="pmsg"></div>
   </div>
 
@@ -212,6 +261,7 @@
     <div id="zseg">
       <button id="zvNest" class="on">入れ子図</button>
       <button id="zvFlow">実行順 →</button>
+      <button id="zvOut">出力</button>
       <button id="zvUml">UML</button>
     </div>
     <div id="flowMsg"></div>
@@ -219,7 +269,17 @@
     <div id="zContent">
       <div id="imap"></div>
       <div id="ztree"></div>
-      <div id="umlWrap"></div>
+      <div id="outWrap"></div>
+      <div id="umlWrap">
+        <div id="umlSeg">
+          <button id="uTabClass" class="on">クラス図</button>
+          <button id="uTabObj">オブジェクト図</button>
+          <button id="uTabSeq">シーケンス図</button>
+        </div>
+        <div id="umlClass"></div>
+        <div id="umlObj"></div>
+        <div id="umlSeq"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -286,10 +346,13 @@ if (!window.storage) {
   let updating = false;
   let parseTimer = null, saveTimer = null;
   let undoStack = [];
-  let editUndoPushed = false;
+  let redoStack = [];
+  let lastSnapshot;          // 直近の安定状態（履歴記録の基準）
   let insertMode = null;
   let zview = 'nest';       // 'nest' | 'flow' | 'uml'
+  let umlTab = 'class';     // 'class' | 'obj' | 'seq'
   let umlSVG = null;
+  let seqEvents = [];       // [{from, to, toKind, label, step, varName}]
   let classInfo = {decls:{}, extendedBy:{}, implementedBy:{}};
   let flowSteps = {};       // nodeId -> [{n, note}]
   let flowOrder = [];       // [{n, nodeId}]
@@ -301,6 +364,7 @@ if (!window.storage) {
   const ztree = $('ztree');
   const imap = $('imap');
   const codeIn = $('codeIn');
+  const codeHL = $('codeHL');
   const uid = () => Math.random().toString(36).slice(2,9);
 
   /* ============== コード → ツリー（パーサ） ============== */
@@ -400,7 +464,7 @@ if (!window.storage) {
     if(!m) return null;
     if(['return','new','class','abstract'].includes(m[2])) return null;
     return {
-      text: `${visOf(m[1])} ${m[3]} : ${m[2]}`,
+      text: `${visOf(m[1])} ${m[3]}:${m[2]}`,
       type: m[2].replace(/<[^>]*>|\[\]/g, ''),
       st: /\bstatic\b/.test(m[1])
     };
@@ -421,11 +485,11 @@ if (!window.storage) {
       p = p.trim();
       if(!p) return '';
       const pm = p.match(/^([\s\S]*?)\s+([A-Za-z_]\w*)$/);
-      return pm ? `${pm[2]} : ${pm[1].trim()}` : p;
+      return pm ? `${pm[2]}:${pm[1].trim()}` : p;
     }).filter(Boolean).join(', ');
     const isCtor = (name === cls) && !ret;
     return {
-      text: `${visOf(mods)} ${name}(${params})` + (ret && !isCtor ? ` : ${ret}` : ''),
+      text: `${visOf(mods)} ${name}(${params})` + (ret && !isCtor ? `:${ret}` : ''),
       it: forceAbstract || /\babstract\b/.test(mods),
       st: /\bstatic\b/.test(mods),
       ctor: isCtor
@@ -439,7 +503,7 @@ if (!window.storage) {
         const d = declOf(n.code);
         if(d){
           classInfo.decls[d.name] = Object.assign(
-            {fields:[], methods:[], hasA:[], node:n, methodNodes:{}, ctorNode:null}, d
+            {fields:[], methods:[], hasA:[], node:n, methodNodes:{}, ctorNode:null, ctorNodes:[]}, d
           );
           if(d.ext){
             (classInfo.extendedBy[d.ext] = classInfo.extendedBy[d.ext] || []).push(d.name);
@@ -461,7 +525,7 @@ if (!window.storage) {
                 const nm = methodNameOf(n.code);
                 if(nm){
                   od.methodNodes[nm] = n;
-                  if(nm === owner) od.ctorNode = n;
+                  if(nm === owner){ od.ctorNode = n; od.ctorNodes.push(n); }
                 }
               }
             }
@@ -494,6 +558,11 @@ if (!window.storage) {
   function numChar(n){
     return n <= 20 ? String.fromCharCode(0x2460 + n - 1) : '(' + n + ')';
   }
+  // 各ステップに固有の色相を割り当てる（実行順に沿って色相環をぐるっと一周）
+  function hueOf(n){
+    // 黄金角(137.5°)で色相をずらし、隣り合うステップが必ず大きく違う色になるようにする
+    return Math.round(((n - 1) * 137.508) % 360);
+  }
   function lookupMethod(type, name){
     let t = type, hop = 0;
     while(t && classInfo.decls[t] && hop < 10){
@@ -504,7 +573,7 @@ if (!window.storage) {
     return null;
   }
   function computeTrace(){
-    flowSteps = {}; flowOrder = []; flowMsg = ''; loopBacks = []; maxStep = 0;
+    flowSteps = {}; flowOrder = []; flowMsg = ''; loopBacks = []; maxStep = 0; seqEvents = [];
     const names = Object.keys(classInfo.decls);
     let entry = null, entryOwner = null;
     for(const nm of names){
@@ -521,6 +590,7 @@ if (!window.storage) {
     let counter = 1, truncated = false;
     const callStack = new Set();
     const varTypes = {};
+    const seqStack = [{cls: entryOwner, kind: 'main'}];
 
     function addStep(node, note){
       if(counter > 60){ truncated = true; throw 'STOP'; }
@@ -534,10 +604,12 @@ if (!window.storage) {
       if(!step) return;
       step.note += (step.note ? '、' : '') + txt;
     }
-    function execMethod(mNode, owner){
+    function execMethod(mNode, owner, seqKind){
       if(callStack.has(mNode.id)) return;
       callStack.add(mNode.id);
+      seqStack.push({cls: owner, kind: seqKind || 'method'});
       execList(mNode.children, owner);
+      seqStack.pop();
       callStack.delete(mNode.id);
     }
     function execList(children, owner){
@@ -586,31 +658,45 @@ if (!window.storage) {
       }
     }
     function handleCalls(t, step, owner){
+      const caller = seqStack[seqStack.length - 1];
       const vm = t.match(/^([A-Z]\w*)\s+([A-Za-z_]\w*)\s*=\s*new\s+([A-Z]\w*)/);
       if(vm) varTypes[vm[2]] = vm[3];
       for(const m of t.matchAll(/\bnew\s+([A-Z]\w*)\s*\(/g)){
         const d = classInfo.decls[m[1]];
         if(d && d.ctorNode){
+          const vn = vm && vm[3] === m[1] ? vm[2] : null;
+          seqEvents.push({from: caller.cls, to: m[1], toKind: 'ctor', label: 'new ' + m[1] + '()', step: step.n, varName: vn});
           appendNote(step, m[1] + ' のコンストラクタへ');
-          execMethod(d.ctorNode, m[1]);
+          execMethod(d.ctorNode, m[1], 'ctor');
         }
       }
       for(const m of t.matchAll(/([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*\(/g)){
         if(['System','out','Math','String','Integer','Arrays'].includes(m[1])) continue;
         const rt = varTypes[m[1]];
-        if(!rt) continue;
-        const res = lookupMethod(rt, m[2]);
-        if(res){
-          appendNote(step, res.owner + ' の ' + m[2] + '() へ');
-          execMethod(res.node, res.owner);
+        if(rt){
+          const res = lookupMethod(rt, m[2]);
+          if(res){
+            seqEvents.push({from: caller.cls, to: res.owner, toKind: 'method', label: m[2] + '()', step: step.n, varName: m[1]});
+            appendNote(step, res.owner + ' の ' + m[2] + '() へ');
+            execMethod(res.node, res.owner, 'method');
+          }
+        } else if(classInfo.decls[m[1]]){
+          // ClassName.method() → 静的呼び出し
+          const res = lookupMethod(m[1], m[2]);
+          if(res){
+            seqEvents.push({from: caller.cls, to: m[1], toKind: 'static', label: m[2] + '()', step: step.n, varName: null});
+            appendNote(step, m[1] + ' の ' + m[2] + '() へ（static）');
+            execMethod(res.node, res.owner, 'static');
+          }
         }
       }
       const bm = t.match(/^([A-Za-z_]\w*)\s*\(/);
       if(bm && owner && !['super','this','if','for','while','switch'].includes(bm[1])){
         const res = lookupMethod(owner, bm[1]);
         if(res){
+          seqEvents.push({from: caller.cls, to: res.owner, toKind: 'method', label: bm[1] + '()', step: step.n, varName: null});
           appendNote(step, res.owner + ' の ' + bm[1] + '() へ');
-          execMethod(res.node, res.owner);
+          execMethod(res.node, res.owner, 'method');
         }
       }
     }
@@ -786,7 +872,7 @@ if (!window.storage) {
     const lg = $('flowLegend');
     if(lg){
       lg.style.display = (zview === 'flow' && flowOrder.length) ? 'block' : 'none';
-      lg.textContent = '矢印の色 ＝ 実行が進む順（青 → 紫）。赤い点線 ＝ ループで前に戻る流れ。番号①②③… の順に処理されます。';
+      lg.textContent = '矢印と番号は1ステップごとに違う色（実行が進む順に色が変わる）。赤い点線 ＝ ループで前に戻る流れ。番号①②③… の順に処理されます。';
     }
     ztree.innerHTML = '';
     if(!roots.length){
@@ -800,6 +886,7 @@ if (!window.storage) {
     }
     renderMap();
     if(zview === 'uml') renderUML();
+    if(zview === 'out') renderOut();
     if(zview === 'flow') requestAnimationFrame(drawFlowArrows);
     refreshTools();
   }
@@ -822,7 +909,7 @@ if (!window.storage) {
         b.className = 'stp';
         b.dataset.step = s.n;
         const t = maxStep > 1 ? (s.n - 1) / (maxStep - 1) : 0;
-        b.style.background = `hsl(${210 + t * 70} 72% 46%)`;
+        b.style.background = `hsl(${hueOf(s.n)} 72% 46%)`;
         b.textContent = s.n <= 20 ? numChar(s.n) : s.n;
         kd.appendChild(b);
       });
@@ -921,7 +1008,7 @@ if (!window.storage) {
     const arr = buildArrowGeom(pos);
     if(!arr.length) return;
     const colOf = o => o.kind === 'f'
-      ? `hsl(${210 + (maxStep > 1 ? (o.sn - 1) / (maxStep - 1) : 0) * 70} 72% 46%)`
+      ? `hsl(${hueOf(o.sn)} 72% 46%)`
       : '#d66a6a';
     let halos = '', lines = '', heads = '';
     arr.forEach(o => {
@@ -1023,9 +1110,16 @@ if (!window.storage) {
     imap.appendChild(wrap);
   }
 
-  /* ============== UMLクラス図 ============== */
+  /* ============== UML（クラス図 / オブジェクト図 / シーケンス図） ============== */
   function renderUML(){
-    const wrapEl = $('umlWrap');
+    if(umlTab === 'class') renderClassDiagram();
+    else if(umlTab === 'obj') renderObjDiagram();
+    else renderSeqDiagram();
+  }
+
+  /* ------ クラス図 ------ */
+  function renderClassDiagram(){
+    const wrapEl = $('umlClass');
     const names = Object.keys(classInfo.decls);
     if(!names.length){
       wrapEl.innerHTML = '<div id="zempty">クラスを書くとUMLクラス図が表示されます。</div>';
@@ -1169,32 +1263,706 @@ ${S}
       const big = window.matchMedia('(min-width: 1000px)').matches;
       const avail = (wrapEl.clientWidth || vb.width) - 20;
       let f;
-      if(big){
-        f = 1.5;                                   // 広い画面（PC）は従来どおり拡大
-      }else{
-        f = Math.min(1, avail / vb.width);         // 狭い画面は幅に合わせて全体表示
-        f = Math.max(0.5, f);
-      }
+      if(big){ f = 1.5; }else{ f = Math.max(0.5, Math.min(1, avail / vb.width)); }
       sEl.style.width = (vb.width * f) + 'px';
       sEl.style.height = (vb.height * f) + 'px';
     }
   }
 
+  /* ------ オブジェクト図 ------ */
+  function renderObjDiagram(){
+    const wrapEl = $('umlObj');
+    const names = Object.keys(classInfo.decls);
+    let mainNode = null, mainOwner = null;
+    for(const nm of names){
+      if(classInfo.decls[nm].methodNodes && classInfo.decls[nm].methodNodes['main']){
+        mainNode = classInfo.decls[nm].methodNodes['main']; mainOwner = nm; break;
+      }
+    }
+    if(!mainNode){
+      wrapEl.innerHTML = '<div class="uml-empty">main メソッドが無いため、オブジェクト図を生成できません。</div>'; return;
+    }
+    // mainの子を走査してオブジェクト生成を収集
+    const objs = []; // {varName, cls, fieldVals:{name,val}[]}
+    const varT = {};
+    const findInChildren = (children) => {
+      for(const ch of children){
+        const t = ch.code.trim();
+        // Type var = new Type(args) または var = new Type(args)
+        const m = t.match(/(?:([A-Z]\w*)\s+)?([A-Za-z_]\w*)\s*=\s*new\s+([A-Z]\w*)\s*\(([^)]*)\)/);
+        if(m){
+          const cls = m[3], varN = m[2];
+          varT[varN] = cls;
+          const d = classInfo.decls[cls];
+          const fvs = [];
+          if(d){
+            const chain=[]; let c=cls;
+            while(c && classInfo.decls[c]){ chain.unshift(c); c=classInfo.decls[c].ext; }
+            for(const cn of chain){
+              classInfo.decls[cn].fields.forEach(f => {
+                const raw = f.text.replace(/^[+\-#~]\s*/,'');
+                const colon = raw.indexOf(':');
+                const fname = colon>0 ? raw.slice(0,colon).trim() : raw;
+                fvs.push({name: fname, val: ''});
+              });
+            }
+          }
+          objs.push({varName: varN, cls, fieldVals: fvs});
+        }
+        if(ch.children && ch.children.length) findInChildren(ch.children);
+      }
+    };
+    findInChildren(mainNode.children);
+    if(!objs.length){
+      wrapEl.innerHTML = '<div class="uml-empty">main の中に new でオブジェクトを作る処理がないため、オブジェクト図を生成できません。</div>'; return;
+    }
+    // 関係：オブジェクトAのフィールドがオブジェクトBを持つ（seqEventsからsetterを拾う）
+    const rels = []; // {from, to, label}
+    // setterのようなフィールド注入をseqEventsから
+    // has-aリンク
+    objs.forEach(o => {
+      const d = classInfo.decls[o.cls]; if(!d) return;
+      d.hasA.forEach(t => {
+        const target = objs.find(x => x.cls === t);
+        if(target) rels.push({from: o.varName, to: target.varName, label: ''});
+      });
+    });
+    // SVG生成
+    const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const mc = document.createElement('canvas').getContext('2d');
+    const FT = '700 13px -apple-system,"Hiragino Sans",sans-serif';
+    const FM = '12px "Courier New", Courier, monospace';
+    const LH = 17, PADX = 12, M = 30, GAPX = 48, GAPY = 60;
+    const boxes = {};
+    objs.forEach(o => {
+      const title = o.varName + ':' + o.cls;
+      mc.font = FT; let w = mc.measureText(title).width;
+      mc.font = FM;
+      o.fieldVals.forEach(f => { w = Math.max(w, mc.measureText(f.name + ' = ').width + 40); });
+      w = Math.max(130, Math.ceil(w) + PADX*2);
+      const fH = Math.max(16, o.fieldVals.length * LH + 8);
+      boxes[o.varName] = {w, titleH: 26, fH, h: 26 + fH, title};
+    });
+    // 横並び配置
+    let tx = M;
+    objs.forEach(o => { boxes[o.varName].x = tx; boxes[o.varName].y = M; tx += boxes[o.varName].w + GAPX; });
+    const svgW = Math.max(tx - GAPX + M, 300);
+    const svgH = Math.max(...objs.map(o => boxes[o.varName].h)) + M*2 + 32;
+    let S = '';
+    // 関係線（先に描く）
+    rels.forEach(r => {
+      const a = boxes[r.from], b = boxes[r.to]; if(!a||!b) return;
+      const x1=a.x+a.w, y1=a.y+a.h/2, x2=b.x, y2=b.y+b.h/2;
+      S += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="orel"/>`;
+    });
+    // オブジェクト箱
+    objs.forEach(o => {
+      const b = boxes[o.varName];
+      S += `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="4" class="bx"/>`;
+      S += `<path d="M${b.x},${b.y+b.titleH} h${b.w} v${-b.titleH+4} a4,4 0 0 0 -4,-4 h${-b.w+8} a4,4 0 0 0 -4,4 z" fill="#cfe8ff" stroke="#4a443b" stroke-width="1.5"/>`;
+      // タイトル（下線付き）
+      S += `<text x="${b.x+b.w/2}" y="${b.y+17}" class="ott">${esc(b.title)}</text>`;
+      let ty = b.y + b.titleH + 14;
+      o.fieldVals.forEach(f => {
+        S += `<text x="${b.x+PADX}" y="${ty}" class="mem">${esc(f.name + ' =')}</text>`;
+        ty += LH;
+      });
+      if(!o.fieldVals.length){
+        S += `<text x="${b.x+PADX}" y="${b.y+b.titleH+14}" class="mem opl">（フィールドなし）</text>`;
+      }
+    });
+    // 凡例
+    S += `<text x="${M}" y="${svgH-8}" class="lg">オブジェクト図：main で生成されるインスタンスと、そのフィールドを示します。フィールド値は実行時に決まります。</text>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">
+<style>
+.bx{fill:#fff;stroke:#4a443b;stroke-width:1.5;}
+.ott{font:700 13px -apple-system,"Hiragino Sans",sans-serif;fill:#2a271f;text-anchor:middle;text-decoration:underline;}
+.mem{font:12px "Courier New", Courier, monospace;letter-spacing:0;fill:#2a271f;}
+.opl{fill:#999;}
+.orel{stroke:#4a443b;stroke-width:1.5;fill:none;}
+.lg{font:600 10.5px -apple-system,"Hiragino Sans",sans-serif;fill:#8a8374;}
+.ed{stroke:#4a443b;stroke-width:1.5;fill:none;}
+</style>
+<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#fff"/>
+${S}
+</svg>`;
+    wrapEl.innerHTML = svg;
+    const sEl = wrapEl.querySelector('svg');
+    if(sEl){
+      const vb = sEl.viewBox.baseVal;
+      const big = window.matchMedia('(min-width: 1000px)').matches;
+      const avail = (wrapEl.clientWidth||vb.width)-20;
+      const f = big ? 1.5 : Math.max(0.5, Math.min(1, avail/vb.width));
+      sEl.style.width=(vb.width*f)+'px'; sEl.style.height=(vb.height*f)+'px';
+    }
+  }
+
+  /* ------ シーケンス図 ------ */
+  function renderSeqDiagram(){
+    const wrapEl = $('umlSeq');
+    if(!seqEvents.length){
+      // seqEventsはcomputeTraceが走らないと空なので、まず走らせる
+      computeTrace();
+    }
+    if(!seqEvents.length){
+      wrapEl.innerHTML = '<div class="uml-empty">メソッド呼び出しが無いため、シーケンス図を生成できません。</div>'; return;
+    }
+    const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // ライフライン一覧（登場順）
+    const lls = []; const llIdx = {};
+    const addLL = nm => { if(!(nm in llIdx)){ llIdx[nm]=lls.length; lls.push(nm); } };
+    // まずmainの持ち主から
+    const names = Object.keys(classInfo.decls);
+    for(const nm of names){
+      if(classInfo.decls[nm].methodNodes && classInfo.decls[nm].methodNodes['main']){ addLL(nm); break; }
+    }
+    seqEvents.forEach(e => { addLL(e.from); addLL(e.to); });
+
+    const mc = document.createElement('canvas').getContext('2d');
+    const FH = '12px "Courier New", Courier, monospace';
+    mc.font = FH;
+    const LLPAD = 16, LLGAP = 60, MSG_H = 36, TOP_H = 40, M = 24;
+    const llW = lls.map(nm => Math.max(100, Math.ceil(mc.measureText(nm).width) + LLPAD*2));
+    const llCx = []; let cx = M;
+    lls.forEach((nm,i) => { llCx.push(cx + llW[i]/2); cx += llW[i] + LLGAP; });
+    const svgW = Math.max(cx - LLGAP + M, 300);
+    const svgH = TOP_H + seqEvents.length * MSG_H + MSG_H + M*2;
+
+    let S = '';
+    // ライフライン箱
+    lls.forEach((nm,i) => {
+      const x = llCx[i] - llW[i]/2, y = M;
+      S += `<rect x="${x}" y="${y}" width="${llW[i]}" height="28" rx="4" fill="#cfe8ff" stroke="#4a443b" stroke-width="1.5"/>`;
+      S += `<text x="${llCx[i]}" y="${y+18}" class="llt">${esc(nm)}</text>`;
+      // 縦の破線（ライフライン）
+      S += `<line x1="${llCx[i]}" y1="${y+28}" x2="${llCx[i]}" y2="${svgH-M}" class="lll"/>`;
+    });
+    // メッセージ矢印
+    seqEvents.forEach((e, idx) => {
+      const y = TOP_H + M + idx * MSG_H;
+      const fi = llIdx[e.from], ti = llIdx[e.to];
+      if(fi===undefined || ti===undefined) return;
+      const x1 = llCx[fi], x2 = llCx[ti];
+      const isSelf = fi === ti;
+      const col = e.toKind === 'ctor' ? '#2e9e5b' : e.toKind === 'static' ? '#9b59d0' : '#2f6fed';
+      const mk = `mk${idx}`;
+      S += `<defs><marker id="${mk}" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M1,1 L8,4.5 L1,8 Z" fill="${col}"/></marker></defs>`;
+      if(isSelf){
+        // 自己呼び出し
+        const ox = x1 + 28;
+        S += `<path d="M${x1},${y} L${ox},${y} L${ox},${y+18} L${x1+2},${y+18}" fill="none" stroke="${col}" stroke-width="1.8" marker-end="url(#${mk})"/>`;
+        S += `<text x="${ox+4}" y="${y+12}" class="mst" fill="${col}">${esc(e.label)}</text>`;
+      } else {
+        const dir = x2 > x1 ? 1 : -1;
+        S += `<line x1="${x1}" y1="${y}" x2="${x2 - dir*8}" y2="${y}" stroke="${col}" stroke-width="1.8" marker-end="url(#${mk})"/>`;
+        const lx = (x1+x2)/2;
+        const badge = e.toKind==='ctor' ? '《new》' : e.toKind==='static' ? '《static》' : '';
+        S += `<text x="${lx}" y="${y-6}" class="mst" fill="${col}">${esc((badge?badge+' ':'')+e.label)}</text>`;
+        // ステップ番号
+        S += `<text x="${x1 + dir*6}" y="${y+14}" class="mst" fill="${col}" opacity=".7">${e.step}</text>`;
+      }
+    });
+    // 凡例
+    const ly = svgH - M + 4;
+    S += `<text x="${M}" y="${ly}" class="lg">緑矢印:コンストラクタ呼び出し　青矢印:メソッド呼び出し　紫矢印:staticメソッド呼び出し</text>`;
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">
+<style>
+.llt{font:700 13px -apple-system,"Hiragino Sans",sans-serif;fill:#2a271f;text-anchor:middle;}
+.lll{stroke:#4a443b;stroke-width:1.2;stroke-dasharray:5 4;}
+.mst{font:11px "Courier New",Courier,monospace;text-anchor:middle;letter-spacing:0;}
+.lg{font:600 10.5px -apple-system,"Hiragino Sans",sans-serif;fill:#8a8374;}
+</style>
+<rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#fff"/>
+${S}
+</svg>`;
+    wrapEl.innerHTML = svg;
+    const sEl = wrapEl.querySelector('svg');
+    if(sEl){
+      const vb = sEl.viewBox.baseVal;
+      const big = window.matchMedia('(min-width: 1000px)').matches;
+      const avail = (wrapEl.clientWidth||vb.width)-20;
+      const f = big ? 1.5 : Math.max(0.5, Math.min(1, avail/vb.width));
+      sEl.style.width=(vb.width*f)+'px'; sEl.style.height=(vb.height*f)+'px';
+    }
+  }
+
   /* ============== 図ビュー切り替え ============== */
+  /* ============== 出力シミュレーション（簡易インタプリタ） ============== */
+  function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function runProgram(){
+    let outBuf = '', steps = 0, objCounter = 0;
+    const LIMIT = 200000;
+    const statics = Object.create(null), staticsDone = Object.create(null);
+    function tick(){ if(++steps > LIMIT) throw {halt:'処理が長すぎるため停止しました（無限ループの可能性）'}; }
+    function emit(s){ outBuf += s; if(outBuf.length > 20000) throw {halt:'出力が多すぎるため停止しました'}; }
+
+    function jstr(v){
+      if(v === null || v === undefined) return 'null';
+      if(typeof v === 'boolean') return v ? 'true' : 'false';
+      if(typeof v === 'number') return Number.isInteger(v) ? String(v) : String(v);
+      if(typeof v === 'object') return (v.__class || 'Object') + '@' + (v.__id || '1');
+      return String(v);
+    }
+    function toNum(v){ if(typeof v==='number')return v; if(typeof v==='boolean')return v?1:0; if(v==null)return 0; const n=parseFloat(v); return isNaN(n)?0:n; }
+    function truthy(v){ if(typeof v==='boolean')return v; if(typeof v==='number')return v!==0; return !!v; }
+    function eqv(a,b){ return a===b; }
+    function defaultFor(type){ if(['int','long','short','byte','double','float'].includes(type))return 0; if(type==='boolean')return false; if(type==='char')return ''; return null; }
+
+    function paramNames(code){
+      const s=String(code), a=s.indexOf('('), b=s.lastIndexOf(')');
+      if(a<0||b<a) return [];
+      const inner=s.slice(a+1,b).trim();
+      if(!inner) return [];
+      return splitTop(inner, ',').map(p=>{ const m=p.trim().match(/([A-Za-z_]\w*)\s*$/); return m?m[1]:p.trim(); });
+    }
+    function resolveMethod(cls, name){
+      let c=cls, hop=0;
+      while(c && classInfo.decls[c] && hop<30){
+        const d=classInfo.decls[c];
+        if(d.methodNodes && d.methodNodes[name]) return {node:d.methodNodes[name], owner:c};
+        c=d.ext; hop++;
+      }
+      return null;
+    }
+
+    /* ----- トークナイザ / 式パーサ ----- */
+    function tokenize(src){
+      const toks=[]; let i=0; const n=src.length;
+      const isId=c=>/[A-Za-z_$]/.test(c), isIdN=c=>/[A-Za-z0-9_$]/.test(c), isD=c=>/[0-9]/.test(c);
+      while(i<n){
+        const c=src[i];
+        if(c===' '||c==='\t'||c==='\n'||c==='\r'){i++;continue;}
+        if(c==='"'){ let j=i+1,s=''; while(j<n&&src[j]!=='"'){ if(src[j]==='\\'){ const e=src[j+1]; s+= e==='n'?'\n':e==='t'?'\t':e; j+=2;} else {s+=src[j];j++;} } toks.push({t:'str',v:s}); i=j+1; continue; }
+        if(c==="'"){ let j=i+1,s=''; while(j<n&&src[j]!=="'"){ if(src[j]==='\\'){ const e=src[j+1]; s+= e==='n'?'\n':e==='t'?'\t':e; j+=2;} else {s+=src[j];j++;} } toks.push({t:'str',v:s}); i=j+1; continue; }
+        if(isD(c)||(c==='.'&&isD(src[i+1]))){ let j=i,s=''; while(j<n&&/[0-9.]/.test(src[j])){s+=src[j];j++;} toks.push({t:'num',v:parseFloat(s)}); i=j; continue; }
+        if(isId(c)){ let j=i,s=''; while(j<n&&isIdN(src[j])){s+=src[j];j++;} toks.push({t:'id',v:s}); i=j; continue; }
+        const two=src.substr(i,2);
+        if(['==','!=','<=','>=','&&','||'].includes(two)){ toks.push({t:'op',v:two}); i+=2; continue; }
+        if('+-*/%<>!=(),.'.includes(c)){ toks.push({t:'op',v:c}); i++; continue; }
+        i++;
+      }
+      toks.push({t:'eof'});
+      return toks;
+    }
+    function parseExpr(toks){
+      let p=0;
+      const peek=()=>toks[p], next=()=>toks[p++];
+      const isOp=v=>peek().t==='op'&&peek().v===v;
+      function eat(v){ if(isOp(v)){p++;return true;} return false; }
+      function parseArgs(){ eat('('); const args=[]; if(!isOp(')')){ args.push(parseOr()); while(eat(','))args.push(parseOr()); } eat(')'); return args; }
+      function parsePostfix(node){
+        while(isOp('.')){ p++; const nm=next().v; if(isOp('(')){ const args=parseArgs(); node={k:'call',target:node,name:nm,args}; } else node={k:'field',target:node,name:nm}; }
+        return node;
+      }
+      function parsePrimary(){
+        const t=peek();
+        if(t.t==='num'){p++;return {k:'num',v:t.v};}
+        if(t.t==='str'){p++;return {k:'str',v:t.v};}
+        if(isOp('(')){ p++; const e=parseOr(); eat(')'); return parsePostfix(e); }
+        if(t.t==='id'){
+          p++;
+          if(t.v==='true')return{k:'bool',v:true};
+          if(t.v==='false')return{k:'bool',v:false};
+          if(t.v==='null')return{k:'null'};
+          if(t.v==='this')return parsePostfix({k:'this'});
+          if(t.v==='new'){ const ty=next().v; const args= isOp('(')?parseArgs():[]; return parsePostfix({k:'new',type:ty,args}); }
+          let node={k:'var',name:t.v};
+          if(isOp('(')){ const args=parseArgs(); node={k:'call',target:null,name:t.v,args}; }
+          return parsePostfix(node);
+        }
+        throw {halt:'式を解釈できません'};
+      }
+      function parseUnary(){ const t=peek(); if(t.t==='op'&&(t.v==='-'||t.v==='!')){p++;return{k:'un',op:t.v,e:parseUnary()};} return parsePrimary(); }
+      function parseMul(){ let l=parseUnary(); while(peek().t==='op'&&['*','/','%'].includes(peek().v)){const op=next().v;l={k:'bin',op,l,r:parseUnary()};} return l; }
+      function parseAdd(){ let l=parseMul(); while(peek().t==='op'&&['+','-'].includes(peek().v)){const op=next().v;l={k:'bin',op,l,r:parseMul()};} return l; }
+      function parseRel(){ let l=parseAdd(); while(peek().t==='op'&&['<','<=','>','>='].includes(peek().v)){const op=next().v;l={k:'bin',op,l,r:parseAdd()};} return l; }
+      function parseEql(){ let l=parseRel(); while(peek().t==='op'&&['==','!='].includes(peek().v)){const op=next().v;l={k:'bin',op,l,r:parseRel()};} return l; }
+      function parseAnd(){ let l=parseEql(); while(isOp('&&')){p++;l={k:'bin',op:'&&',l,r:parseEql()};} return l; }
+      function parseOr(){ let l=parseAnd(); while(isOp('||')){p++;l={k:'bin',op:'||',l,r:parseAnd()};} return l; }
+      return parseOr();
+    }
+    function evalStr(src, env){ return ev(parseExpr(tokenize(src)), env); }
+
+    function ev(node, env){
+      switch(node.k){
+        case 'num': return node.v;
+        case 'str': return node.v;
+        case 'bool': return node.v;
+        case 'null': return null;
+        case 'this': return env.thisObj;
+        case 'un': { const v=ev(node.e,env); return node.op==='-'? -toNum(v) : !truthy(v); }
+        case 'var': { if(node.name==='this')return env.thisObj; return getVar(env,node.name); }
+        case 'field': {
+          if(node.target.k==='var'){
+            let asVar=true, val;
+            try{ val=getVar(env, node.target.name); }catch(e){ asVar=false; }
+            if(!asVar && classInfo.decls[node.target.name]){
+              const sc=staticFieldOwner(node.target.name, node.name);
+              if(sc) return statics[sc][node.name];
+              throw {halt:'フィールド '+node.name+' を参照できません'};
+            }
+            if(asVar){ if(val&&val.fields&&(node.name in val.fields))return val.fields[node.name]; throw {halt:'フィールド '+node.name+' を参照できません'}; }
+          }
+          const o=ev(node.target,env); if(o&&o.fields&&(node.name in o.fields))return o.fields[node.name]; throw {halt:'フィールド '+node.name+' を参照できません'};
+        }
+        case 'new': return construct(node.type, node.args.map(a=>ev(a,env)));
+        case 'call': return doCall(node, env);
+        case 'bin': return binop(node.op, node.l, node.r, env);
+      }
+      throw {halt:'式の評価に失敗しました'};
+    }
+    function binop(op,ln,rn,env){
+      if(op==='&&') return truthy(ev(ln,env)) && truthy(ev(rn,env));
+      if(op==='||') return truthy(ev(ln,env)) || truthy(ev(rn,env));
+      const a=ev(ln,env), b=ev(rn,env);
+      switch(op){
+        case '+': if(typeof a==='string'||typeof b==='string')return jstr(a)+jstr(b); return toNum(a)+toNum(b);
+        case '-': return toNum(a)-toNum(b);
+        case '*': return toNum(a)*toNum(b);
+        case '/': { const x=toNum(a),y=toNum(b); if(y===0)throw {halt:'0で割り算しました'}; return (Number.isInteger(x)&&Number.isInteger(y))?Math.trunc(x/y):x/y; }
+        case '%': return toNum(a)%toNum(b);
+        case '<': return toNum(a)<toNum(b);
+        case '<=': return toNum(a)<=toNum(b);
+        case '>': return toNum(a)>toNum(b);
+        case '>=': return toNum(a)>=toNum(b);
+        case '==': return eqv(a,b);
+        case '!=': return !eqv(a,b);
+      }
+      throw {halt:'演算子 '+op+' は未対応です'};
+    }
+    function doCall(node, env){
+      if((node.name==='println'||node.name==='print') && node.target && node.target.k==='field'
+          && node.target.name==='out' && node.target.target && node.target.target.k==='var' && node.target.target.name==='System'){
+        const v = node.args.length ? ev(node.args[0],env) : '';
+        emit(node.name==='println' ? (node.args.length? jstr(v):'') + '\n' : jstr(v));
+        return undefined;
+      }
+      if(node.target===null && (node.name==='super' || node.name==='this') && env.thisObj){
+        const cargs=node.args.map(a=>ev(a,env));
+        const tcls = node.name==='super'
+          ? (classInfo.decls[env.cls] ? classInfo.decls[env.cls].ext : null)
+          : env.cls;
+        if(tcls) runCtor(env.thisObj, tcls, cargs);
+        return undefined;
+      }
+      const args=node.args.map(a=>ev(a,env));
+      if(node.target){
+        if(node.target.k==='var'){
+          let asVar=true, val;
+          try{ val=getVar(env, node.target.name); }catch(e){ asVar=false; }
+          if(!asVar && classInfo.decls[node.target.name]) return invoke(null, node.name, args, node.target.name);
+          if(asVar && val && val.__class) return invoke(val, node.name, args);
+          if(!asVar) throw {halt:'メソッド '+node.name+'() を解釈できません'};
+        }
+        const o=ev(node.target,env);
+        if(o&&o.__class) return invoke(o, node.name, args);
+        throw {halt:'メソッド '+node.name+'() を解釈できません'};
+      }
+      if(env.thisObj) return invoke(env.thisObj, node.name, args);
+      if(env.cls){ const r=resolveMethod(env.cls,node.name); if(r) return invoke(null, node.name, args, env.cls); }
+      throw {halt:'メソッド '+node.name+'() を解釈できません'};
+    }
+
+    /* ----- 環境（スコープ） ----- */
+    function newEnv(thisObj, cls){ return {frames:[Object.create(null)], thisObj, cls}; }
+    function pushF(env){ env.frames.push(Object.create(null)); }
+    function popF(env){ env.frames.pop(); }
+    function declare(env,name,val){ env.frames[env.frames.length-1][name]=val; }
+    function getVar(env,name){ for(let i=env.frames.length-1;i>=0;i--){ if(name in env.frames[i])return env.frames[i][name]; } if(env.thisObj&&(name in env.thisObj.fields))return env.thisObj.fields[name]; const sc=staticOwner(env,name); if(sc)return statics[sc][name]; throw {halt:'変数 '+name+' は未定義です'}; }
+    function setVarL(env,name,val){ for(let i=env.frames.length-1;i>=0;i--){ if(name in env.frames[i]){env.frames[i][name]=val;return;} } if(env.thisObj&&(name in env.thisObj.fields)){env.thisObj.fields[name]=val;return;} const sc=staticOwner(env,name); if(sc){statics[sc][name]=val;return;} env.frames[env.frames.length-1][name]=val; }
+
+    /* ----- オブジェクト生成 ----- */
+    function runCtor(obj, cls, args){
+      const d=classInfo.decls[cls]; if(!d) return;
+      ensureStatics(cls);
+      const ctors = (d.ctorNodes && d.ctorNodes.length) ? d.ctorNodes : (d.ctorNode ? [d.ctorNode] : []);
+      let ctor=null;
+      for(const cn of ctors){ if(paramNames(cn.code).length === args.length){ ctor=cn; break; } }
+      if(!ctor && ctors.length) ctor=ctors[0];
+      if(ctor){
+        const params=paramNames(ctor.code);
+        const nenv=newEnv(obj, cls);
+        params.forEach((p,i)=>declare(nenv,p,args[i]));
+        try{ execList(ctor.children, nenv); }catch(s){ if(s&&s.sig){} else throw s; }
+      }
+    }
+    function construct(type, args){
+      tick();
+      const d=classInfo.decls[type];
+      if(!d) throw {halt:type+' のクラス定義が見つかりません'};
+      ensureStatics(type);
+      const obj={__class:type, __id:String(++objCounter), fields:Object.create(null)};
+      initFields(obj, type);
+      runCtor(obj, type, args);
+      return obj;
+    }
+    function initFields(obj, type){
+      const chain=[]; let c=type; while(c&&classInfo.decls[c]){chain.unshift(c);c=classInfo.decls[c].ext;}
+      for(const cn of chain){
+        ensureStatics(cn);
+        const d=classInfo.decls[cn];
+        for(const child of d.node.children){
+          if(child.block||child.children.length) continue;
+          const fm=parseFieldDecl(child.code);
+          if(fm && !fm.static){ obj.fields[fm.name]= fm.init!=null ? ev(parseExpr(tokenize(fm.init)), newEnv(obj,cn)) : defaultFor(fm.type); }
+        }
+      }
+    }
+    /* ----- static フィールド（クラス全体で共有する1つの値） ----- */
+    function ensureStatics(cls){
+      if(staticsDone[cls]) return;
+      staticsDone[cls]=true;
+      const d=classInfo.decls[cls]; if(!d) return;
+      statics[cls]=statics[cls]||Object.create(null);
+      for(const child of d.node.children){
+        if(child.block||child.children.length) continue;
+        const fm=parseFieldDecl(child.code);
+        if(fm && fm.static){
+          statics[cls][fm.name]= fm.init!=null ? ev(parseExpr(tokenize(fm.init)), {frames:[Object.create(null)],thisObj:null,cls}) : defaultFor(fm.type);
+        }
+      }
+    }
+    function staticFieldOwner(cls, name){
+      let c=cls, hop=0;
+      while(c && classInfo.decls[c] && hop<30){ ensureStatics(c); if(statics[c] && (name in statics[c])) return c; c=classInfo.decls[c].ext; hop++; }
+      return null;
+    }
+    function staticOwner(env, name){
+      return staticFieldOwner(env.thisObj ? env.thisObj.__class : env.cls, name);
+    }
+    function parseFieldDecl(code){
+      const t=String(code).replace(/@\w+\s*/g,'').trim();
+      if(t.includes('(')) return null;
+      const m=t.match(/^((?:(?:public|private|protected|static|final|transient|volatile)\s+)*)([A-Za-z_][\w$<>\[\]]*)\s+([A-Za-z_]\w*)\s*(?:=\s*([\s\S]+))?$/);
+      if(!m) return null;
+      const type=m[2];
+      if(['return','new','else','do','case','default','break','continue','this','print','println','void'].includes(type)) return null;
+      return {type:type.replace(/<[^>]*>|\[\]/g,''), name:m[3], init:m[4]!==undefined?m[4].trim():null, static:/\bstatic\b/.test(m[1])};
+    }
+
+    /* ----- メソッド呼び出し ----- */
+    function invoke(obj, name, args, clsForResolve){
+      tick();
+      const cls = obj ? obj.__class : clsForResolve;
+      if(cls) ensureStatics(cls);
+      const r = resolveMethod(cls, name);
+      if(!r) throw {halt:'メソッド '+name+'() の定義が見つかりません'};
+      const params=paramNames(r.node.code);
+      const nenv=newEnv(obj, r.owner);
+      params.forEach((p,i)=>declare(nenv,p,args[i]));
+      try{ execList(r.node.children, nenv); }
+      catch(s){ if(s&&s.sig==='ret')return s.val; if(s&&s.sig)return undefined; throw s; }
+      return undefined;
+    }
+
+    /* ----- 文の実行 ----- */
+    function condOf(header){ const a=header.indexOf('('),b=header.lastIndexOf(')'); return a>=0&&b>a?header.slice(a+1,b):'true'; }
+    function execScoped(children, env){ pushF(env); try{ execList(children, env); } finally{ popF(env); } }
+    function execList(children, env){
+      for(let i=0;i<children.length;i++){
+        const node=children[i], t=node.code.trim();
+        const isBlk=node.block||node.children.length||node.caseNode;
+        if(isBlk && /^if\b/.test(t)){
+          let j=i, taken=false;
+          while(j<children.length){
+            const c=children[j], ct=c.code.trim();
+            if(j>i && !/^else\b/.test(ct)) break;
+            const isElse=/^else\b/.test(ct) && !/^else\s+if\b/.test(ct);
+            if(!taken){
+              if(isElse){ execScoped(c.children, env); taken=true; }
+              else { if(truthy(evalStr(condOf(ct), env))){ execScoped(c.children, env); taken=true; } }
+            }
+            j++;
+          }
+          i=j-1; continue;
+        }
+        if(isBlk && /^do\b/.test(t)){
+          let condStr=null;
+          if(i+1<children.length){ const ct=children[i+1].code.trim(); if(/^while\b/.test(ct)&&!(children[i+1].block||children[i+1].children.length)) condStr=condOf(ct); }
+          do{ tick(); try{ execScoped(node.children, env);}catch(s){ if(s&&s.sig==='cont'){} else if(s&&s.sig==='brk')break; else throw s; } }
+          while(condStr!==null && truthy(evalStr(condStr,env)));
+          if(condStr!==null) i++;
+          continue;
+        }
+        execStmt(node, env);
+      }
+    }
+    function execStmt(node, env){
+      tick();
+      const t=node.code.trim();
+      const isBlk=node.block||node.children.length||node.caseNode;
+      if(isBlk){
+        if(/^for\b/.test(t)){ runFor(t, node.children, env); return; }
+        if(/^while\b/.test(t)){ const cs=condOf(t); while(truthy(evalStr(cs,env))){ tick(); try{ execScoped(node.children,env);}catch(s){ if(s&&s.sig==='cont'){} else if(s&&s.sig==='brk')break; else throw s; } } return; }
+        if(/^switch\b/.test(t)){ runSwitch(t, node.children, env); return; }
+        if(/^(class|interface)\b/.test(t) || /\babstract\b/.test(t)) return;
+        if(/\(/.test(t)) return;   // メソッド/コンストラクタ定義は出力実行ではスキップ
+        execScoped(node.children, env); return;
+      }
+      if(t===''||t==='{}') return;
+      if(/^return\b/.test(t)){ const ex=t.slice(6).trim(); throw {sig:'ret', val: ex?evalStr(ex,env):undefined}; }
+      if(/^break\b/.test(t)) throw {sig:'brk'};
+      if(/^continue\b/.test(t)) throw {sig:'cont'};
+      if(/^(case|default)\b/.test(t)) return;
+      let m;
+      if(m=t.match(/^([A-Za-z_]\w*)\s*\+\+$/)){ setVarL(env,m[1],toNum(getVar(env,m[1]))+1); return; }
+      if(m=t.match(/^([A-Za-z_]\w*)\s*--$/)){ setVarL(env,m[1],toNum(getVar(env,m[1]))-1); return; }
+      if(m=t.match(/^\+\+([A-Za-z_]\w*)$/)){ setVarL(env,m[1],toNum(getVar(env,m[1]))+1); return; }
+      if(m=t.match(/^--([A-Za-z_]\w*)$/)){ setVarL(env,m[1],toNum(getVar(env,m[1]))-1); return; }
+      if(m=t.match(/^([A-Za-z_][\w.]*)\s*(\+=|-=|\*=|\/=)\s*([\s\S]+)$/)){ assignCompound(m[1],m[2],m[3],env); return; }
+      const decl=parseLocalDecl(t);
+      if(decl){ declare(env, decl.name, decl.init!=null?evalStr(decl.init,env):defaultFor(decl.type)); return; }
+      if(m=t.match(/^([A-Za-z_][\w.]*)\s*=(?!=)\s*([\s\S]+)$/)){ assignTo(m[1], evalStr(m[2],env), env); return; }
+      evalStr(t, env);   // 式文（メソッド呼び出し等）
+    }
+    function parseLocalDecl(t){
+      const m=t.match(/^(?:final\s+)?([A-Za-z_][\w$<>\[\]]*)\s+([A-Za-z_]\w*)\s*(?:=\s*([\s\S]+))?$/);
+      if(!m) return null;
+      const type=m[1];
+      if(['return','new','else','do','case','default','break','continue','this','print','println'].includes(type)) return null;
+      const isType=/^(int|long|short|byte|double|float|char|boolean|String|var)$/.test(type) || /^[A-Z]/.test(type) || (classInfo.decls&&classInfo.decls[type]);
+      if(!isType) return null;
+      return {type:type.replace(/<[^>]*>|\[\]/g,''), name:m[2], init:m[3]!==undefined?m[3].trim():null};
+    }
+    function runFor(header, body, env){
+      const parts=splitTop(condOf(header), ';');
+      const initS=(parts[0]||'').trim(), condS=(parts[1]||'').trim(), updS=(parts[2]||'').trim();
+      pushF(env);
+      try{
+        if(initS){ const d=parseLocalDecl(initS); if(d) declare(env,d.name, d.init!=null?evalStr(d.init,env):defaultFor(d.type)); else execMini(initS, env); }
+        while(condS==='' || truthy(evalStr(condS,env))){
+          tick();
+          try{ execScoped(body, env); }catch(s){ if(s&&s.sig==='cont'){} else if(s&&s.sig==='brk')break; else throw s; }
+          if(updS) execMini(updS, env);
+        }
+      } finally { popF(env); }
+    }
+    function execMini(stmt, env){
+      stmt=stmt.trim(); let m;
+      if(m=stmt.match(/^([A-Za-z_]\w*)\s*\+\+$/)){ setVarL(env,m[1],toNum(getVar(env,m[1]))+1); return; }
+      if(m=stmt.match(/^([A-Za-z_]\w*)\s*--$/)){ setVarL(env,m[1],toNum(getVar(env,m[1]))-1); return; }
+      if(m=stmt.match(/^([A-Za-z_][\w.]*)\s*(\+=|-=|\*=|\/=)\s*([\s\S]+)$/)){ assignCompound(m[1],m[2],m[3],env); return; }
+      if(m=stmt.match(/^([A-Za-z_][\w.]*)\s*=(?!=)\s*([\s\S]+)$/)){ assignTo(m[1], evalStr(m[2],env), env); return; }
+    }
+    function runSwitch(header, caseChildren, env){
+      const sel=evalStr(condOf(header), env);
+      let startIdx=-1, defaultIdx=-1;
+      for(let i=0;i<caseChildren.length;i++){
+        const c=caseChildren[i]; if(!c.caseNode) continue;
+        const ct=c.code.trim();
+        if(/^default\b/.test(ct)){ defaultIdx=i; continue; }
+        const vm=ct.replace(/^case\s+/,'').replace(/:$/,'').trim();
+        if(eqv(evalStr(vm,env), sel)){ startIdx=i; break; }
+      }
+      if(startIdx<0) startIdx=defaultIdx;
+      if(startIdx<0) return;
+      try{
+        for(let i=startIdx;i<caseChildren.length;i++){
+          const c=caseChildren[i]; if(!c.caseNode) continue;
+          execScoped(c.children, env);   // フォールスルー
+        }
+      }catch(s){ if(s&&s.sig==='brk'){} else throw s; }
+    }
+    function readPath(target, env){ const parts=target.split('.'); let o= parts[0]==='this'?env.thisObj:getVar(env,parts[0]); for(let i=1;i<parts.length;i++){ o=o&&o.fields?o.fields[parts[i]]:undefined; } return o; }
+    function assignTo(target, val, env){
+      if(target.includes('.')){
+        const parts=target.split('.');
+        let o= parts[0]==='this'?env.thisObj:getVar(env,parts[0]);
+        for(let i=1;i<parts.length-1;i++){ o=o&&o.fields?o.fields[parts[i]]:undefined; }
+        const last=parts[parts.length-1];
+        if(o&&o.fields){ o.fields[last]=val; return; }
+        throw {halt:'代入先 '+target+' を解決できません'};
+      }
+      setVarL(env, target, val);
+    }
+    function assignCompound(target, op, rhsSrc, env){
+      const cur= target.includes('.')?readPath(target,env):getVar(env,target);
+      const r= evalStr(rhsSrc, env);
+      const base=op[0]; let nv;
+      if(base==='+') nv=(typeof cur==='string'||typeof r==='string')?jstr(cur)+jstr(r):toNum(cur)+toNum(r);
+      else if(base==='-') nv=toNum(cur)-toNum(r);
+      else if(base==='*') nv=toNum(cur)*toNum(r);
+      else { const y=toNum(r); if(y===0)throw {halt:'0で割り算しました'}; nv=(Number.isInteger(toNum(cur))&&Number.isInteger(y))?Math.trunc(toNum(cur)/y):toNum(cur)/y; }
+      assignTo(target, nv, env);
+    }
+    function splitTop(s, delim){
+      const out=[]; let d=0, cur='', inS=false, inC=false;
+      for(let i=0;i<s.length;i++){ const c=s[i];
+        if(inS){ cur+=c; if(c==='"'&&s[i-1]!=='\\')inS=false; continue; }
+        if(inC){ cur+=c; if(c==="'"&&s[i-1]!=='\\')inC=false; continue; }
+        if(c==='"'){inS=true;cur+=c;continue;}
+        if(c==="'"){inC=true;cur+=c;continue;}
+        if(c==='('||c==='[')d++;
+        if(c===')'||c===']')d--;
+        if(c===delim&&d===0){ out.push(cur); cur=''; continue; }
+        cur+=c;
+      }
+      out.push(cur); return out;
+    }
+
+    /* ----- エントリ：main を探して実行 ----- */
+    let mainNode=null, mainOwner=null;
+    for(const nm in classInfo.decls){ const d=classInfo.decls[nm]; if(d.methodNodes&&d.methodNodes['main']){ mainNode=d.methodNodes['main']; mainOwner=nm; break; } }
+    if(!mainNode) return {output:'', note:'main メソッドが無いため、出力は表示できません。'};
+    let note='';
+    try{
+      execList(mainNode.children, newEnv(null, mainOwner));
+    }catch(e){
+      if(e&&e.halt) note=e.halt;
+      else if(e&&e.sig){ /* 末端のreturn等は無視 */ }
+      else note='一部の文を解釈できなかったため、途中で停止しました（簡易実行が未対応の構文かもしれません）。';
+    }
+    return {output: outBuf, note};
+  }
+
+  function renderOut(){
+    const wrap=$('outWrap');
+    let res;
+    try{ res=runProgram(); }catch(e){ res={output:'', note:'実行中にエラーが発生しました。'}; }
+    const lines=res.output.split('\n');
+    if(lines.length && lines[lines.length-1]==='') lines.pop();
+    let html='<div class="console">';
+    if(!lines.length){ html+='<span class="cempty">（出力なし）</span>'; }
+    else { html+=lines.map(l=> l==='' ? '&nbsp;' : escHtml(l)).join('\n'); }
+    html+='</div>';
+    if(res.note){ html+='<div class="outnote warn">'+escHtml(res.note)+'</div>'; }
+    else { html+='<div class="outnote">System.out.println / print の出力をシミュレートした結果です。実際のJava実行環境（Eclipse等）と結果が異なる場合があります。</div>'; }
+    wrap.innerHTML=html;
+  }
+
+  function setUmlTab(t){
+    umlTab = t;
+    $('uTabClass').classList.toggle('on', t==='class');
+    $('uTabObj').classList.toggle('on', t==='obj');
+    $('uTabSeq').classList.toggle('on', t==='seq');
+    $('umlClass').style.display = t==='class' ? 'block' : 'none';
+    $('umlObj').style.display   = t==='obj'   ? 'block' : 'none';
+    $('umlSeq').style.display   = t==='seq'   ? 'block' : 'none';
+    if(zview==='uml') renderUML();
+  }
   function setZview(v){
     zview = v;
     $('zvNest').classList.toggle('on', v === 'nest');
     $('zvFlow').classList.toggle('on', v === 'flow');
+    $('zvOut').classList.toggle('on', v === 'out');
     $('zvUml').classList.toggle('on', v === 'uml');
     imap.style.display = v === 'nest' ? 'flex' : 'none';
-    ztree.style.display = v !== 'uml' ? 'flex' : 'none';
+    ztree.style.display = (v === 'nest' || v === 'flow') ? 'flex' : 'none';
+    $('outWrap').style.display = v === 'out' ? 'block' : 'none';
     $('umlWrap').style.display = v === 'uml' ? 'block' : 'none';
+    if(v === 'uml') setUmlTab(umlTab);  // サブタブ表示を初期化
     document.body.dataset.flow = (v === 'flow') ? '1' : '';
     renderZ();
   }
   $('zvNest').addEventListener('click', () => setZview('nest'));
   $('zvFlow').addEventListener('click', () => setZview('flow'));
+  $('zvOut').addEventListener('click', () => setZview('out'));
   $('zvUml').addEventListener('click', () => setZview('uml'));
+  $('uTabClass').addEventListener('click', () => setUmlTab('class'));
+  $('uTabObj').addEventListener('click', () => setUmlTab('obj'));
+  $('uTabSeq').addEventListener('click', () => setUmlTab('seq'));
 
   $('zuPane').addEventListener('click', () => select(null));
 
@@ -1222,15 +1990,115 @@ ${S}
     if(document.activeElement !== $('codeEdit')) $('codeEdit').value = f.node.code;
   }
 
-  /* ============== アンドゥ ============== */
-  function undoPush(){
-    undoStack.push(codeIn.value);
-    if(undoStack.length > 40) undoStack.shift();
+  /* ============== アンドゥ / リドゥ ============== */
+  function recordHistory(){
+    if(lastSnapshot !== undefined && lastSnapshot !== codeIn.value){
+      undoStack.push(lastSnapshot);
+      if(undoStack.length > 80) undoStack.shift();
+      redoStack = [];
+    }
+    lastSnapshot = codeIn.value;
+    updateUndoButtons();
   }
-  $('undoBtn').addEventListener('click', () => {
-    const s = undoStack.pop();
-    if(s === undefined) return;
-    setCode(s, true);
+  function commitChange(newValue){   // サンプル等の全置換を1操作として記録
+    if(newValue !== codeIn.value){
+      undoStack.push(codeIn.value);
+      if(undoStack.length > 80) undoStack.shift();
+      redoStack = [];
+    }
+    lastSnapshot = newValue;
+    setCode(newValue, true);
+    updateUndoButtons();
+  }
+  function doUndo(){
+    if(!undoStack.length) return;
+    redoStack.push(codeIn.value);
+    const prev = undoStack.pop();
+    lastSnapshot = prev;
+    setCode(prev, true);
+    updateUndoButtons();
+  }
+  function doRedo(){
+    if(!redoStack.length) return;
+    undoStack.push(codeIn.value);
+    const next = redoStack.pop();
+    lastSnapshot = next;
+    setCode(next, true);
+    updateUndoButtons();
+  }
+  function updateUndoButtons(){
+    $('undoBtn').disabled = undoStack.length === 0;
+    $('redoBtn').disabled = redoStack.length === 0;
+    $('undoBtn').style.opacity = undoStack.length ? '1' : '.4';
+    $('redoBtn').style.opacity = redoStack.length ? '1' : '.4';
+  }
+  $('undoBtn').addEventListener('click', doUndo);
+  $('redoBtn').addEventListener('click', doRedo);
+
+  /* ============== エディタ（括弧の色分け・自動字下げ） ============== */
+  function escHtmlChar(c){
+    return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c;
+  }
+  // { と対応する } を同じ色にして表示（ネストの深さで6色を循環）
+  function highlightCode(src){
+    let depth = 0, out = '';
+    for(let i = 0; i < src.length; i++){
+      const ch = src[i];
+      if(ch === '{'){
+        out += `<span class="bd${depth % 6}">{</span>`;
+        depth++;
+      }else if(ch === '}'){
+        depth = Math.max(0, depth - 1);
+        out += `<span class="bd${depth % 6}">}</span>`;
+      }else{
+        out += escHtmlChar(ch);
+      }
+    }
+    return out;
+  }
+  function updateHL(){
+    codeHL.innerHTML = highlightCode(codeIn.value) + '\n';
+    codeHL.scrollTop = codeIn.scrollTop;
+    codeHL.scrollLeft = codeIn.scrollLeft;
+  }
+  codeIn.addEventListener('scroll', () => {
+    codeHL.scrollTop = codeIn.scrollTop;
+    codeHL.scrollLeft = codeIn.scrollLeft;
+  });
+  // プログラムから本文を書き換え（ハイライト更新＋図の再生成＋履歴）
+  function applyEdit(v, caret){
+    codeIn.value = v;
+    codeIn.selectionStart = codeIn.selectionEnd = caret;
+    updateHL();
+    clearTimeout(parseTimer);
+    parseTimer = setTimeout(() => { handleCodeChanged(); recordHistory(); }, 450);
+  }
+  codeIn.addEventListener('keydown', e => {
+    if(e.key === 'Tab'){
+      e.preventDefault();
+      const v = codeIn.value, s = codeIn.selectionStart, en = codeIn.selectionEnd;
+      applyEdit(v.slice(0, s) + '  ' + v.slice(en), s + 2);   // Tab → スペース2つ
+    }else if(e.key === 'Enter'){
+      e.preventDefault();
+      const v = codeIn.value, s = codeIn.selectionStart, en = codeIn.selectionEnd;
+      const lineStart = v.lastIndexOf('\n', s - 1) + 1;
+      const indent = (v.slice(lineStart, s).match(/^[ \t]*/) || [''])[0];
+      const openBefore = /\{\s*$/.test(v.slice(lineStart, s));  // 行末が {
+      const closeAfter = /^\s*\}/.test(v.slice(en));            // 直後が }
+      let ins, caret;
+      if(openBefore && closeAfter){
+        // { と } の間で改行 → 中を一段下げ、} は元の段に
+        ins = '\n' + indent + '  ' + '\n' + indent;
+        caret = s + ('\n' + indent + '  ').length;
+      }else if(openBefore){
+        ins = '\n' + indent + '  ';                            // { の後は一段下げる
+        caret = s + ins.length;
+      }else{
+        ins = '\n' + indent;                                   // 同じ段を維持
+        caret = s + ins.length;
+      }
+      applyEdit(v.slice(0, s) + ins + v.slice(en), caret);
+    }
   });
 
   /* ============== 同期 ============== */
@@ -1238,6 +2106,7 @@ ${S}
     updating = true;
     codeIn.value = treeToCode();
     updating = false;
+    updateHL();
     $('pmsg').textContent = '';
     saveCode();
   }
@@ -1253,30 +2122,31 @@ ${S}
     updating = true;
     codeIn.value = v;
     updating = false;
+    updateHL();
     if(immediate) handleCodeChanged();
   }
   codeIn.addEventListener('input', () => {
     if(updating) return;
+    updateHL();
     clearTimeout(parseTimer);
-    parseTimer = setTimeout(() => { undoPush(); handleCodeChanged(); }, 450);
+    parseTimer = setTimeout(() => { handleCodeChanged(); recordHistory(); }, 450);
   });
 
   /* ============== 図側の編集 ============== */
   function mutateTree(fn){
-    undoPush();
     fn();
     renderZ();
     syncFromTree();
+    recordHistory();
   }
 
-  $('codeEdit').addEventListener('focus', () => { editUndoPushed = false; });
   $('codeEdit').addEventListener('input', e => {
     const f = sel && find(sel); if(!f) return;
-    if(!editUndoPushed){ undoPush(); editUndoPushed = true; }
     f.node.code = e.target.value.replace(/[;:]+\s*$/, '');
     renderZ();
     syncFromTree();
   });
+  $('codeEdit').addEventListener('blur', () => { recordHistory(); });
   $('codeEdit').addEventListener('keydown', e => { if(e.key === 'Enter') e.target.blur(); });
 
   const CHIPS = [
@@ -1468,8 +2338,7 @@ class Main {
 
   $('sampleBtn').addEventListener('click', () => {
     if(codeIn.value.trim() && !confirm('今のコードをサンプルに置き換えますか？（↩で戻せます）')) return;
-    undoPush();
-    setCode(SAMPLE, true);
+    commitChange(SAMPLE);
   });
 
   async function load(){
@@ -1479,6 +2348,8 @@ class Main {
       if(r && typeof r.value === 'string' && r.value.trim()) v = r.value;
     }catch(e){}
     setCode(v ?? SAMPLE, true);
+    lastSnapshot = codeIn.value;
+    updateUndoButtons();
   }
 
   /* ============== PNG書き出し ============== */
@@ -1504,6 +2375,10 @@ class Main {
   }
 
   $('exportBtn').addEventListener('click', () => {
+    if(zview === 'out'){
+      alert('「出力」はテキストです。長押し（PCはドラッグ）で選択してコピーできます。図やUMLは各タブで「画像」から保存できます。');
+      return;
+    }
     if(!roots.length){ alert('図が空です。コードを書くか、図側で追加してください。'); return; }
     if(document.body.dataset.mode === 'code') showTab('zu');
     if(zview === 'uml'){
@@ -1516,7 +2391,10 @@ class Main {
 
   function exportUML(){
     renderUML();
-    if(!umlSVG){ alert('UMLに表示できるクラスがありません。'); return; }
+    const containerId = umlTab==='class' ? 'umlClass' : umlTab==='obj' ? 'umlObj' : 'umlSeq';
+    const svgEl = $(containerId).querySelector('svg');
+    if(!svgEl){ alert('表示できる図がありません。'); return; }
+    const svgStr = svgEl.outerHTML.replace('<svg ','<svg xmlns="http://www.w3.org/2000/svg" ');
     const img = new Image();
     img.onload = () => {
       const SC = 2;
@@ -1531,7 +2409,7 @@ class Main {
       $('dlLink').href = url;
       $('ov').classList.add('show');
     };
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(umlSVG);
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
   }
 
   function doExport(){
@@ -1615,7 +2493,7 @@ class Main {
         const br = 9*SC;
         steps.forEach(s => {
           const t = maxStep > 1 ? (s.n - 1) / (maxStep - 1) : 0;
-          ctx.fillStyle = 'hsl(' + (210 + t * 70) + ',72%,46%)';
+          ctx.fillStyle = 'hsl(' + hueOf(s.n) + ',72%,46%)';
           ctx.beginPath();
           ctx.arc(tagX + br, ty + br - 1*SC, br, 0, Math.PI*2);
           ctx.fill();
@@ -1687,7 +2565,7 @@ class Main {
           ctx.lineTo(o.tx, o.ty);
         };
         const col = o.kind === 'f'
-          ? 'hsl(' + (210 + (maxStep > 1 ? (o.sn - 1) / (maxStep - 1) : 0) * 70) + ',72%,46%)'
+          ? 'hsl(' + hueOf(o.sn) + ',72%,46%)'
           : '#d66a6a';
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
         if(o.kind === 'f'){
@@ -1732,9 +2610,7 @@ class Main {
 </script>
 <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function(){
-    navigator.serviceWorker.register('sw.js').catch(function(){});
-  });
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
 }
 </script>
 </body>
